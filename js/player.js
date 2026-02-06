@@ -4,11 +4,17 @@ class Player {
         this.y = y;
         this.width = 40;
         this.height = 24;
+        this.radius = 20;
         this.vx = 0;
         this.vy = 0;
         this.maxSpeed = 250;       // pixels per second
         this.acceleration = 600;   // pixels per second squared
         this.friction = 0.92;      // velocity multiplier per frame
+
+        // Energy / hunger system
+        this.energy = 100;
+        this.maxEnergy = 100;
+        this.energyDepleteRate = 1; // per second
 
         // Track which keys are held
         this.keys = {
@@ -19,6 +25,14 @@ class Player {
         };
 
         this._bindKeys();
+    }
+
+    reset(x, y) {
+        this.x = x;
+        this.y = y;
+        this.vx = 0;
+        this.vy = 0;
+        this.energy = this.maxEnergy;
     }
 
     _bindKeys() {
@@ -55,7 +69,19 @@ class Player {
         }
     }
 
+    eat(amount) {
+        this.energy = Math.min(this.maxEnergy, this.energy + amount);
+    }
+
+    depleteEnergy(dt) {
+        this.energy -= this.energyDepleteRate * dt;
+        if (this.energy < 0) this.energy = 0;
+    }
+
     update(dt, canvasWidth, canvasHeight) {
+        // Deplete energy
+        this.depleteEnergy(dt);
+
         // Apply acceleration based on input
         let ax = 0;
         let ay = 0;
