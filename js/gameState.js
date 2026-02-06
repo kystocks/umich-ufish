@@ -72,7 +72,7 @@ class GameState {
         ctx.font = '15px monospace';
         ctx.fillText('WASD / Arrow Keys — Move', w / 2, h / 2 + 10);
         ctx.fillText('Eat smaller fish to survive', w / 2, h / 2 + 35);
-        ctx.fillText('Avoid the red predators!', w / 2, h / 2 + 60);
+        ctx.fillText('Hide in coral to escape predators!', w / 2, h / 2 + 60);
 
         // Prompt
         ctx.fillStyle = '#fff';
@@ -123,7 +123,7 @@ class GameState {
         ctx.textAlign = 'left';
     }
 
-    drawHUD(ctx, w, h, energy, maxEnergy) {
+    drawHUD(ctx, w, h, energy, maxEnergy, isHidden) {
         // Energy bar background
         const barX = 15;
         const barY = 15;
@@ -147,6 +147,13 @@ class GameState {
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 12px monospace';
         ctx.fillText(`Energy: ${Math.ceil(energy)}`, barX + 5, barY + 13);
+
+        // Hidden indicator
+        if (isHidden) {
+            ctx.fillStyle = '#2ecc71';
+            ctx.font = 'bold 12px monospace';
+            ctx.fillText('HIDDEN', barX + barW + 12, barY + 13);
+        }
 
         // Score (top-right)
         ctx.textAlign = 'right';

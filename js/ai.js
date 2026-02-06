@@ -18,6 +18,19 @@ const AI = {
     },
 
     /**
+     * Slow drift for plankton. Very long direction-change intervals.
+     */
+    drift(fish, dt) {
+        fish.wanderTimer -= dt;
+        if (fish.wanderTimer <= 0) {
+            fish.wanderAngle = Math.random() * Math.PI * 2;
+            fish.wanderTimer = 4 + Math.random() * 6; // 4–10 seconds
+        }
+        fish.vx = Math.cos(fish.wanderAngle) * fish.speed * 0.5;
+        fish.vy = Math.sin(fish.wanderAngle) * fish.speed * 0.5;
+    },
+
+    /**
      * Flee from a target. Moves directly away.
      */
     flee(fish, target, dt) {
@@ -31,15 +44,18 @@ const AI = {
     },
 
     /**
-     * Chase a target. Moves directly toward it.
+     * Chase a target. Wobble amount is configurable per fish.
      */
     chase(fish, target, dt) {
         const dx = target.x - fish.x;
         const dy = target.y - fish.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist > 0) {
-            fish.vx = (dx / dist) * fish.speed;
-            fish.vy = (dy / dist) * fish.speed;
+            const wobbleAmount = fish.wobble !== undefined ? fish.wobble : 0.7;
+            const wobble = (Math.random() - 0.5) * wobbleAmount;
+            const angle = Math.atan2(dy, dx) + wobble;
+            fish.vx = Math.cos(angle) * fish.speed;
+            fish.vy = Math.sin(angle) * fish.speed;
         }
     },
 };

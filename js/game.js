@@ -9,54 +9,60 @@ const state = new GameState();
 // --- Fish arrays ---
 let fishes = [];
 
-const PREY_MIN = 5;
-const PREDATOR_MIN = 2;
-const MAX_FISH = 15;
-const SPAWN_SAFE_DIST = 250; // min distance from player when spawning
-const INVINCIBILITY_TIME = 1.5; // seconds of safety after starting/restarting
+// --- Per-species population config ---
+const POPULATION = {
+    plankton:       { min: 3, max: 5, create: createPlankton },
+    shrimp:         { min: 2, max: 4, create: createShrimp,  yMin: 0.4, yMax: 0.9 },
+    smallFish:      { min: 3, max: 5, create: createSmallFish },
+    mediumPredator: { min: 2, max: 3, create: createMediumPredator },
+    largePredator:  { min: 1, max: 1, create: createLargePredator },
+    totalMax: 20,
+};
+
+const SPAWN_SAFE_DIST = 250;
+const INVINCIBILITY_TIME = 1.5;
 let invincibilityTimer = 0;
+let gameTime = 0; // running time for animations
 
 // --- Spawning ---
-function randomSpawnPos() {
-    // Try up to 20 times to find a spot away from the player
+function randomSpawnPos(yMinPct, yMaxPct) {
+    const yMin = yMinPct !== undefined ? canvas.height * yMinPct : 30;
+    const yMax = yMaxPct !== undefined ? canvas.height * yMaxPct : canvas.height - 30;
+
     for (let i = 0; i < 20; i++) {
         const x = 30 + Math.random() * (canvas.width - 60);
-        const y = 30 + Math.random() * (canvas.height - 60);
+        const y = yMin + Math.random() * (yMax - yMin);
         const dx = x - player.x;
         const dy = y - player.y;
         if (Math.sqrt(dx * dx + dy * dy) > SPAWN_SAFE_DIST) {
             return { x, y };
         }
     }
-    // Fallback: spawn at edge
     return { x: 30, y: 30 };
 }
 
 function spawnInitialFish() {
     fishes = [];
-    for (let i = 0; i < PREY_MIN; i++) {
-        const pos = randomSpawnPos();
-        fishes.push(createPrey(pos.x, pos.y));
-    }
-    for (let i = 0; i < PREDATOR_MIN; i++) {
-        const pos = randomSpawnPos();
-        fishes.push(createPredator(pos.x, pos.y));
+    for (const [species, config] of Object.entries(POPULATION)) {
+        if (species === 'totalMax') continue;
+        for (let i = 0; i < config.min; i++) {
+            const pos = randomSpawnPos(config.yMin, config.yMax);
+            fishes.push(config.create(pos.x, pos.y));
+        }
     }
 }
 
 function maintainPopulation() {
-    if (fishes.length >= MAX_FISH) return;
+    if (fishes.length >= POPULATION.totalMax) return;
 
-    const preyCount = fishes.filter(f => f.type === 'prey').length;
-    const predCount = fishes.filter(f => f.type === 'predator').length;
-
-    if (preyCount < PREY_MIN) {
-        const pos = randomSpawnPos();
-        fishes.push(createPrey(pos.x, pos.y));
-    }
-    if (predCount < PREDATOR_MIN) {
-        const pos = randomSpawnPos();
-        fishes.push(createPredator(pos.x, pos.y));
+    for (const [species, config] of Object.entries(POPULATION)) {
+        if (species === 'totalMax') continue;
+        const count = fishes.filter(f => f.species === species).length;
+        if (count < config.min) {
+            const pos = randomSpawnPos(config.yMin, config.yMax);
+            fishes.push(config.create(pos.x, pos.y));
+            return; // spawn one per frame to stagger
+        }
     }
 }
 
@@ -64,15 +70,19 @@ function maintainPopulation() {
 state.onStart = () => {
     player.reset(canvas.width / 2, canvas.height / 2);
     spawnInitialFish();
+    Environment.generate(canvas.width, canvas.height);
     invincibilityTimer = INVINCIBILITY_TIME;
     eatEffects = [];
+    gameTime = 0;
 };
 
 state.onRestart = () => {
     player.reset(canvas.width / 2, canvas.height / 2);
     spawnInitialFish();
+    Environment.generate(canvas.width, canvas.height);
     invincibilityTimer = INVINCIBILITY_TIME;
     eatEffects = [];
+    gameTime = 0;
 };
 
 // --- Timing ---
@@ -83,6 +93,7 @@ let currentFps = 0;
 
 // --- Background ---
 function drawBackground() {
+    // Water gradient
     const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
     grad.addColorStop(0, '#0e7abf');
     grad.addColorStop(0.5, '#0b5e8e');
@@ -106,13 +117,26 @@ function drawBackground() {
     }
     ctx.restore();
 
-    // Sandy bottom
-    const sandGrad = ctx.createLinearGradient(0, canvas.height - 40, 0, canvas.height);
+    // Sandy bottom (extended for reef feel)
+    const sandGrad = ctx.createLinearGradient(0, canvas.height - 60, 0, canvas.height);
     sandGrad.addColorStop(0, 'rgba(194, 168, 120, 0.0)');
-    sandGrad.addColorStop(0.4, 'rgba(194, 168, 120, 0.3)');
-    sandGrad.addColorStop(1, 'rgba(194, 168, 120, 0.6)');
+    sandGrad.addColorStop(0.3, 'rgba(194, 168, 120, 0.25)');
+    sandGrad.addColorStop(1, 'rgba(194, 168, 120, 0.65)');
     ctx.fillStyle = sandGrad;
-    ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
+    ctx.fillRect(0, canvas.height - 60, canvas.width, 60);
+
+    // Small rocks/pebbles on sandy bottom
+    ctx.save();
+    ctx.globalAlpha = 0.15;
+    ctx.fillStyle = '#8b7355';
+    for (let i = 0; i < 12; i++) {
+        const rx = 40 + (i * 67) % (canvas.width - 80);
+        const ry = canvas.height - 10 - (i * 13 % 20);
+        ctx.beginPath();
+        ctx.ellipse(rx, ry, 3 + i % 3, 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.restore();
 }
 
 // --- Eat effect ---
@@ -171,7 +195,11 @@ function gameLoop(timestamp) {
     state.update(dt);
 
     if (state.state === 'playing') {
+        gameTime += dt;
         if (invincibilityTimer > 0) invincibilityTimer -= dt;
+
+        // Check hiding BEFORE updating fish AI
+        Environment.checkPlayerHiding(player);
 
         player.update(dt, canvas.width, canvas.height);
 
@@ -191,8 +219,8 @@ function gameLoop(timestamp) {
             }
         }
 
-        // Collision: player vs predator (skip during invincibility)
-        if (invincibilityTimer <= 0) {
+        // Collision: player vs predator (skip during invincibility or when hidden)
+        if (invincibilityTimer <= 0 && !player.isHidden) {
             for (const fish of fishes) {
                 if (fish.type === 'predator' && checkCollision(player, fish)) {
                     state.gameOver();
@@ -217,26 +245,40 @@ function gameLoop(timestamp) {
     drawBackground();
 
     if (state.state === 'menu') {
-        // Draw fish swimming in background for ambiance
+        Environment.drawBack(ctx, 0);
         player.draw(ctx);
+        Environment.drawFront(ctx, 0);
         state.drawMenu(ctx, canvas.width, canvas.height);
     } else if (state.state === 'playing') {
+        // Back environment layer (seaweed, coral back)
+        Environment.drawBack(ctx, gameTime);
+
+        // Fish
         for (const fish of fishes) {
             fish.draw(ctx);
         }
-        // Flash player during invincibility
+
+        // Player (flash during invincibility, translucent when hidden)
         if (invincibilityTimer > 0 && Math.floor(invincibilityTimer * 8) % 2 === 0) {
             ctx.globalAlpha = 0.4;
+        } else if (player.isHidden) {
+            ctx.globalAlpha = 0.55;
         }
         player.draw(ctx);
         ctx.globalAlpha = 1;
+
+        // Front environment layer (coral tips, cave overhang)
+        Environment.drawFront(ctx, gameTime);
+
         drawEatEffects();
-        state.drawHUD(ctx, canvas.width, canvas.height, player.energy, player.maxEnergy);
+        state.drawHUD(ctx, canvas.width, canvas.height, player.energy, player.maxEnergy, player.isHidden);
     } else if (state.state === 'gameOver') {
+        Environment.drawBack(ctx, gameTime);
         for (const fish of fishes) {
             fish.draw(ctx);
         }
         player.draw(ctx);
+        Environment.drawFront(ctx, gameTime);
         state.drawGameOver(ctx, canvas.width, canvas.height, player.energy);
     }
 

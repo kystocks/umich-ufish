@@ -15,6 +15,11 @@ class Player {
         this.energy = 100;
         this.maxEnergy = 100;
         this.energyDepleteRate = 1; // per second
+        this.hiddenEnergyMultiplier = 1.2; // faster drain while hiding
+
+        // Hiding state (set by Environment.checkPlayerHiding)
+        this.isHidden = false;
+        this.currentHidingSpot = null;
 
         // Track which keys are held
         this.keys = {
@@ -33,6 +38,8 @@ class Player {
         this.vx = 0;
         this.vy = 0;
         this.energy = this.maxEnergy;
+        this.isHidden = false;
+        this.currentHidingSpot = null;
     }
 
     _bindKeys() {
@@ -74,7 +81,8 @@ class Player {
     }
 
     depleteEnergy(dt) {
-        this.energy -= this.energyDepleteRate * dt;
+        const mult = this.isHidden ? this.hiddenEnergyMultiplier : 1;
+        this.energy -= this.energyDepleteRate * mult * dt;
         if (this.energy < 0) this.energy = 0;
     }
 

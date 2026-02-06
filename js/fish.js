@@ -9,9 +9,12 @@
  *   color         — body fill color
  *   tailColor     — tail fill color
  *   type          — 'prey' | 'predator'
+ *   species       — species identifier string
  *   detectRange   — range at which AI reacts to player
  *   giveUpRange   — (predator only) stop chasing beyond this
  *   energyValue   — (prey only) energy gained when eaten
+ *   wobble        — (predator only) chase inaccuracy, default 0.7
+ *   drawFn        — (optional) custom draw function(ctx, fish)
  */
 class Fish {
     constructor(config) {
@@ -26,9 +29,12 @@ class Fish {
         this.color = config.color;
         this.tailColor = config.tailColor;
         this.type = config.type;               // 'prey' or 'predator'
+        this.species = config.species || '';
         this.detectRange = config.detectRange;
         this.giveUpRange = config.giveUpRange || 0;
         this.energyValue = config.energyValue || 0;
+        this.wobble = config.wobble !== undefined ? config.wobble : 0.7;
+        this.drawFn = config.drawFn || null;
         this.alive = true;
 
         // AI state
@@ -42,16 +48,18 @@ class Fish {
         const dist = distanceBetween(this, player);
 
         if (this.type === 'prey') {
-            if (dist < this.detectRange) {
+            if (this.species === 'plankton') {
+                // Plankton drifts — never flees
+                AI.drift(this, dt);
+            } else if (dist < this.detectRange) {
                 AI.flee(this, player, dt);
             } else {
                 AI.wander(this, dt);
             }
         } else if (this.type === 'predator') {
-            if (dist < this.detectRange) {
+            // Cannot detect hidden player
+            if (dist < this.detectRange && !player.isHidden) {
                 AI.chase(this, player, dt);
-            } else if (this.giveUpRange > 0 && dist > this.giveUpRange) {
-                AI.wander(this, dt);
             } else {
                 AI.wander(this, dt);
             }
@@ -73,6 +81,13 @@ class Fish {
     draw(ctx) {
         if (!this.alive) return;
 
+        // Use custom draw function if provided
+        if (this.drawFn) {
+            this.drawFn(ctx, this);
+            return;
+        }
+
+        // Default fish drawing
         ctx.save();
         ctx.translate(this.x, this.y);
 
@@ -111,36 +126,4 @@ class Fish {
 
         ctx.restore();
     }
-}
-
-// --- Factory helpers ---
-
-function createPrey(x, y) {
-    return new Fish({
-        x, y,
-        speed: 80,
-        radius: 10,
-        width: 24,
-        height: 14,
-        color: '#7ec8e3',
-        tailColor: '#5ba3c4',
-        type: 'prey',
-        detectRange: 150,
-        energyValue: 15,
-    });
-}
-
-function createPredator(x, y) {
-    return new Fish({
-        x, y,
-        speed: 170,
-        radius: 30,
-        width: 60,
-        height: 34,
-        color: '#c0392b',
-        tailColor: '#922b21',
-        type: 'predator',
-        detectRange: 200,
-        giveUpRange: 300,
-    });
 }
