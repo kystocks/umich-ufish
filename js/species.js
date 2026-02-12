@@ -32,7 +32,7 @@ function drawPlankton(ctx, fish) {
 function createPlankton(x, y) {
     return new Fish({
         x, y,
-        speed: 30,
+        speed: 20,  // Reduced from 30
         radius: 6,
         width: 12,
         height: 12,
@@ -110,7 +110,7 @@ function drawShrimp(ctx, fish) {
 function createShrimp(x, y) {
     return new Fish({
         x, y,
-        speed: 100,
+        speed: 70,  // Reduced from 100
         radius: 8,
         width: 20,
         height: 10,
@@ -131,7 +131,7 @@ function createShrimp(x, y) {
 function createSmallFish(x, y) {
     return new Fish({
         x, y,
-        speed: 80,
+        speed: 60,  // Reduced from 80
         radius: 10,
         width: 24,
         height: 14,
@@ -155,8 +155,8 @@ function createSmallFish(x, y) {
 function createMediumPredator(x, y) {
     return new Fish({
         x, y,
-        speed: 140,
-        radius: 30,
+        speed: 100,  // Reduced from 140
+        radius: 20,  // reduced from 30
         width: 60,
         height: 34,
         color: '#c0392b',
@@ -249,8 +249,8 @@ function drawLargePredator(ctx, fish) {
 function createLargePredator(x, y) {
     return new Fish({
         x, y,
-        speed: 170,
-        radius: 45,
+        speed: 120,  // Reduced from 170
+        radius: 30,  // reduced from 45
         width: 90,
         height: 50,
         color: '#7d3c98',

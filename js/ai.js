@@ -31,20 +31,26 @@ const AI = {
     },
 
     /**
-     * Flee from a target. Moves directly away.
+     * Flee from a target. Moves directly away with gradual acceleration.
      */
     flee(fish, target, dt) {
         const dx = fish.x - target.x;
         const dy = fish.y - target.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist > 0) {
-            fish.vx = (dx / dist) * fish.speed * 1.2;
-            fish.vy = (dy / dist) * fish.speed * 1.2;
+            // Target velocity
+            const targetVx = (dx / dist) * fish.speed * 1.2;
+            const targetVy = (dy / dist) * fish.speed * 1.2;
+
+            // Smoothly accelerate toward target velocity (lerp)
+            const acceleration = 8; // How quickly fish reaches full speed
+            fish.vx += (targetVx - fish.vx) * acceleration * dt;
+            fish.vy += (targetVy - fish.vy) * acceleration * dt;
         }
     },
 
     /**
-     * Chase a target. Wobble amount is configurable per fish.
+     * Chase a target. Wobble amount is configurable per fish. Gradual acceleration.
      */
     chase(fish, target, dt) {
         const dx = target.x - fish.x;
@@ -54,8 +60,15 @@ const AI = {
             const wobbleAmount = fish.wobble !== undefined ? fish.wobble : 0.7;
             const wobble = (Math.random() - 0.5) * wobbleAmount;
             const angle = Math.atan2(dy, dx) + wobble;
-            fish.vx = Math.cos(angle) * fish.speed;
-            fish.vy = Math.sin(angle) * fish.speed;
+
+            // Target velocity
+            const targetVx = Math.cos(angle) * fish.speed;
+            const targetVy = Math.sin(angle) * fish.speed;
+
+            // Smoothly accelerate toward target velocity
+            const acceleration = 6; // Slower than flee - predators are more deliberate
+            fish.vx += (targetVx - fish.vx) * acceleration * dt;
+            fish.vy += (targetVy - fish.vy) * acceleration * dt;
         }
     },
 };

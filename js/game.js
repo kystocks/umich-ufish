@@ -5,6 +5,27 @@ const fpsDisplay = document.getElementById('fps-counter');
 // --- Core objects ---
 const player = new Player(canvas.width / 2, canvas.height / 2);
 const state = new GameState();
+const worldGrid = new WorldGrid(canvas.width, canvas.height);
+
+// --- Click handler for freezing prey ---
+canvas.addEventListener('gameclick', (e) => {
+    const clickX = e.detail.x;
+    const clickY = e.detail.y;
+
+    // Find any prey fish near the click
+    for (const fish of fishes) {
+        if (fish.type === 'prey') {
+            const dx = fish.x - clickX;
+            const dy = fish.y - clickY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            // If clicked within fish radius, freeze it
+            if (dist < fish.radius + 20) {
+                fish.freeze(2.0);  // Freeze for 2 seconds
+            }
+        }
+    }
+});
 
 // --- Fish arrays ---
 let fishes = [];
@@ -23,6 +44,12 @@ const SPAWN_SAFE_DIST = 250;
 const INVINCIBILITY_TIME = 1.5;
 let invincibilityTimer = 0;
 let gameTime = 0; // running time for animations
+
+// Debug info (disabled)
+let debugLog = [];
+function addDebugLog(msg) {
+    // Disabled for now
+}
 
 // --- Spawning ---
 function randomSpawnPos(yMinPct, yMaxPct) {
@@ -43,9 +70,15 @@ function randomSpawnPos(yMinPct, yMaxPct) {
 
 function spawnInitialFish() {
     fishes = [];
-    for (const [species, config] of Object.entries(POPULATION)) {
-        if (species === 'totalMax') continue;
-        for (let i = 0; i < config.min; i++) {
+    const zone = worldGrid.getCurrentZone();
+
+    // Spawn based on zone-specific populations
+    for (const [species, counts] of Object.entries(zone.species)) {
+        const config = POPULATION[species];
+        if (!config) continue;
+
+        const amount = counts.min + Math.floor(Math.random() * (counts.max - counts.min + 1));
+        for (let i = 0; i < amount; i++) {
             const pos = randomSpawnPos(config.yMin, config.yMax);
             fishes.push(config.create(pos.x, pos.y));
         }
@@ -70,7 +103,9 @@ function maintainPopulation() {
 state.onStart = () => {
     player.reset(canvas.width / 2, canvas.height / 2);
     spawnInitialFish();
-    Environment.generate(canvas.width, canvas.height);
+    const zoneSeed = worldGrid.currentZone.x * 1000 + worldGrid.currentZone.y * 100;
+    Environment.generate(canvas.width, canvas.height, zoneSeed);
+    FoodManager.generate(canvas.width, canvas.height);
     invincibilityTimer = INVINCIBILITY_TIME;
     eatEffects = [];
     gameTime = 0;
@@ -79,7 +114,9 @@ state.onStart = () => {
 state.onRestart = () => {
     player.reset(canvas.width / 2, canvas.height / 2);
     spawnInitialFish();
-    Environment.generate(canvas.width, canvas.height);
+    const zoneSeed = worldGrid.currentZone.x * 1000 + worldGrid.currentZone.y * 100;
+    Environment.generate(canvas.width, canvas.height, zoneSeed);
+    FoodManager.generate(canvas.width, canvas.height);
     invincibilityTimer = INVINCIBILITY_TIME;
     eatEffects = [];
     gameTime = 0;
@@ -93,20 +130,27 @@ let currentFps = 0;
 
 // --- Background ---
 function drawBackground() {
-    // Water gradient
+    const zone = worldGrid.getCurrentZone();
+    const zoneSeed = worldGrid.currentZone.x * 100 + worldGrid.currentZone.y * 10;
+
+    // Water gradient based on zone depth
     const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    grad.addColorStop(0, '#0e7abf');
-    grad.addColorStop(0.5, '#0b5e8e');
-    grad.addColorStop(1, '#073b5c');
+    const colors = zone.waterColor;
+    grad.addColorStop(0, colors.start);
+    grad.addColorStop(0.5, colors.mid);
+    grad.addColorStop(1, colors.end);
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Light rays
+    // Light rays (more in shallow zones, fewer in deep)
+    const rayCount = zone.depth === 'shallow' ? 6 : zone.depth === 'mid' ? 4 : 2;
+    const rayAlpha = zone.lightLevel * 0.06;
     ctx.save();
-    ctx.globalAlpha = 0.04;
+    ctx.globalAlpha = rayAlpha;
     ctx.fillStyle = '#fff';
-    for (let i = 0; i < 5; i++) {
-        const x = 100 + i * 160;
+    for (let i = 0; i < rayCount; i++) {
+        // Deterministic positions based on zone seed
+        const x = 80 + ((zoneSeed + i * 97) % (canvas.width - 160));
         ctx.beginPath();
         ctx.moveTo(x - 15, 0);
         ctx.lineTo(x + 15, 0);
@@ -117,26 +161,38 @@ function drawBackground() {
     }
     ctx.restore();
 
-    // Sandy bottom (extended for reef feel)
-    const sandGrad = ctx.createLinearGradient(0, canvas.height - 60, 0, canvas.height);
-    sandGrad.addColorStop(0, 'rgba(194, 168, 120, 0.0)');
-    sandGrad.addColorStop(0.3, 'rgba(194, 168, 120, 0.25)');
-    sandGrad.addColorStop(1, 'rgba(194, 168, 120, 0.65)');
-    ctx.fillStyle = sandGrad;
-    ctx.fillRect(0, canvas.height - 60, canvas.width, 60);
+    // Sandy/rocky bottom (depth varies by zone)
+    if (zone.biome === 'sandy' || zone.biome === 'rocky' || zone.depth === 'deep') {
+        const bottomHeight = zone.depth === 'deep' ? 80 : 60;
+        const sandGrad = ctx.createLinearGradient(0, canvas.height - bottomHeight, 0, canvas.height);
 
-    // Small rocks/pebbles on sandy bottom
-    ctx.save();
-    ctx.globalAlpha = 0.15;
-    ctx.fillStyle = '#8b7355';
-    for (let i = 0; i < 12; i++) {
-        const rx = 40 + (i * 67) % (canvas.width - 80);
-        const ry = canvas.height - 10 - (i * 13 % 20);
-        ctx.beginPath();
-        ctx.ellipse(rx, ry, 3 + i % 3, 2, 0, 0, Math.PI * 2);
-        ctx.fill();
+        if (zone.biome === 'rocky') {
+            sandGrad.addColorStop(0, 'rgba(120, 100, 80, 0.0)');
+            sandGrad.addColorStop(0.3, 'rgba(120, 100, 80, 0.3)');
+            sandGrad.addColorStop(1, 'rgba(120, 100, 80, 0.7)');
+        } else {
+            sandGrad.addColorStop(0, 'rgba(194, 168, 120, 0.0)');
+            sandGrad.addColorStop(0.3, 'rgba(194, 168, 120, 0.25)');
+            sandGrad.addColorStop(1, 'rgba(194, 168, 120, 0.65)');
+        }
+        ctx.fillStyle = sandGrad;
+        ctx.fillRect(0, canvas.height - bottomHeight, canvas.width, bottomHeight);
+
+        // Deterministic rocks/pebbles
+        ctx.save();
+        ctx.globalAlpha = 0.15;
+        ctx.fillStyle = zone.biome === 'rocky' ? '#6b5d4f' : '#8b7355';
+        const pebbleCount = zone.biome === 'rocky' ? 15 : 12;
+        for (let i = 0; i < pebbleCount; i++) {
+            const rx = 40 + ((zoneSeed + i * 67) % (canvas.width - 80));
+            const ry = canvas.height - 10 - ((zoneSeed + i * 13) % 20);
+            const size = 3 + ((zoneSeed + i) % 3);
+            ctx.beginPath();
+            ctx.ellipse(rx, ry, size, 2, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
     }
-    ctx.restore();
 }
 
 // --- Eat effect ---
@@ -201,21 +257,107 @@ function gameLoop(timestamp) {
         // Check hiding BEFORE updating fish AI
         Environment.checkPlayerHiding(player);
 
-        player.update(dt, canvas.width, canvas.height);
+        player.update(dt, canvas.width, canvas.height, worldGrid);
 
-        // Update fish
-        for (const fish of fishes) {
-            fish.update(dt, canvas.width, canvas.height, player);
+        // Check for zone transitions
+        const newZone = worldGrid.checkZoneTransition(player);
+        if (newZone) {
+            worldGrid.startTransition(newZone, player);
+            // Respawn fish and environment for new zone
+            spawnInitialFish();
+            const zoneSeed = worldGrid.currentZone.x * 1000 + worldGrid.currentZone.y * 100;
+            Environment.generate(canvas.width, canvas.height, zoneSeed);
+            FoodManager.generate(canvas.width, canvas.height);
         }
 
-        // Collision: player vs prey
+        // Update transition animation
+        worldGrid.updateTransition(dt);
+
+        // Update food sources
+        FoodManager.update(dt, canvas.width, canvas.height, gameTime);
+
+        // Update fish (pass all fish so they can interact with each other)
+        for (const fish of fishes) {
+            fish.update(dt, canvas.width, canvas.height, player, fishes);
+        }
+
+        // Check if player has reached click target and should eat
+        if (player.hasTarget && player.targetX !== null && player.targetY !== null) {
+            const targetDist = Math.sqrt(
+                (player.x - player.targetX) ** 2 +
+                (player.y - player.targetY) ** 2
+            );
+
+            // Player reached target location
+            if (targetDist < 30) {
+                // Check base food (plankton, algae, detritus)
+                const foodEaten = FoodManager.checkPlayerCollision(player);
+                for (const food of foodEaten) {
+                    if (player.canEatFood(food.type)) {
+                        player.eat(food.type, food.value);
+                        spawnEatEffect(food.x, food.y);
+                        player.hasTarget = false;  // Clear target after eating
+                    }
+                }
+
+                // Check prey fish
+                for (let i = fishes.length - 1; i >= 0; i--) {
+                    const fish = fishes[i];
+                    if (fish.type === 'prey' && checkCollision(player, fish)) {
+                        const inDiet = player.canEatFood(fish.species);
+
+                        if (inDiet) {
+                            player.eat(fish.species, fish.energyValue);
+                            state.score++;
+                            addDebugLog(`${fish.species}: OK (+${fish.energyValue}E)`);
+                        } else {
+                            player.takeDamage(20);
+                            player.energy = Math.min(player.maxEnergy, player.energy + fish.energyValue * 0.5);
+                            addDebugLog(`${fish.species}: BAD (-20H)`);
+                        }
+
+                        spawnEatEffect(fish.x, fish.y);
+                        fishes.splice(i, 1);
+                        player.hasTarget = false;  // Clear target after eating
+                        break;
+                    }
+                }
+
+                // If nothing was eaten at target, clear target anyway
+                if (player.hasTarget) {
+                    player.hasTarget = false;
+                }
+            }
+        }
+
+        // Check for species advancement
+        if (player.canAdvance()) {
+            const advanced = player.advanceSpecies();
+            if (advanced) {
+                state.triggerAdvancement(player.currentSpecies.name);
+                // Grant bonus points
+                player.points += 50;
+            }
+        }
+
+        // Fish eat each other! (ecosystem simulation)
         for (let i = fishes.length - 1; i >= 0; i--) {
-            const fish = fishes[i];
-            if (fish.type === 'prey' && checkCollision(player, fish)) {
-                player.eat(fish.energyValue);
-                state.score++;
-                spawnEatEffect(fish.x, fish.y);
-                fishes.splice(i, 1);
+            const predator = fishes[i];
+            if (predator.type !== 'predator') continue;
+
+            for (let j = fishes.length - 1; j >= 0; j--) {
+                if (i === j) continue;
+                const prey = fishes[j];
+                if (prey.type !== 'prey') continue;
+
+                // Predators eat prey fish
+                if (checkCollision(predator, prey)) {
+                    // Prey eaten!
+                    spawnEatEffect(prey.x, prey.y);
+                    fishes.splice(j, 1);
+                    if (j < i) i--; // adjust index
+                    break;
+                }
             }
         }
 
@@ -223,15 +365,18 @@ function gameLoop(timestamp) {
         if (invincibilityTimer <= 0 && !player.isHidden) {
             for (const fish of fishes) {
                 if (fish.type === 'predator' && checkCollision(player, fish)) {
-                    state.gameOver();
+                    state.gameOver('predator');
                     break;
                 }
             }
         }
 
-        // Starvation check
+        // Death checks
         if (player.energy <= 0) {
-            state.gameOver();
+            state.gameOver('starvation');
+        }
+        if (player.health <= 0) {
+            state.gameOver('damage');
         }
 
         // Maintain population
@@ -249,9 +394,12 @@ function gameLoop(timestamp) {
         player.draw(ctx);
         Environment.drawFront(ctx, 0);
         state.drawMenu(ctx, canvas.width, canvas.height);
-    } else if (state.state === 'playing') {
+    } else if (state.state === 'playing' || state.state === 'advancing') {
         // Back environment layer (seaweed, coral back)
         Environment.drawBack(ctx, gameTime);
+
+        // Food sources (plankton, algae, detritus)
+        FoodManager.draw(ctx, gameTime);
 
         // Fish
         for (const fish of fishes) {
@@ -271,7 +419,17 @@ function gameLoop(timestamp) {
         Environment.drawFront(ctx, gameTime);
 
         drawEatEffects();
-        state.drawHUD(ctx, canvas.width, canvas.height, player.energy, player.maxEnergy, player.isHidden);
+
+        // Show HUD or advancement screen
+        if (state.state === 'playing') {
+            state.drawHUD(ctx, canvas.width, canvas.height, player);
+
+            // Zone indicator and mini-map
+            worldGrid.drawZoneIndicator(ctx);
+            worldGrid.drawMiniMap(ctx);
+        } else if (state.state === 'advancing') {
+            state.drawAdvancement(ctx, canvas.width, canvas.height);
+        }
     } else if (state.state === 'gameOver') {
         Environment.drawBack(ctx, gameTime);
         for (const fish of fishes) {
@@ -279,7 +437,7 @@ function gameLoop(timestamp) {
         }
         player.draw(ctx);
         Environment.drawFront(ctx, gameTime);
-        state.drawGameOver(ctx, canvas.width, canvas.height, player.energy);
+        state.drawGameOver(ctx, canvas.width, canvas.height, player);
     }
 
     requestAnimationFrame(gameLoop);

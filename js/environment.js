@@ -24,50 +24,67 @@ const Environment = {
 
     /**
      * Procedurally generate hiding spots for the play area.
+     * Uses deterministic seed for consistent zone layouts.
      */
-    generate(cw, ch) {
+    generate(cw, ch, zoneSeed = 0) {
         this.reset();
 
+        // Seeded random number generator
+        let seed = zoneSeed;
+        const seededRandom = () => {
+            seed = (seed * 9301 + 49297) % 233280;
+            return seed / 233280;
+        };
+
         // --- Coral formations (bottom third) ---
-        const coralCount = 4 + Math.floor(Math.random() * 3); // 4-6
+        const coralCount = 4 + Math.floor(seededRandom() * 3); // 4-6
         for (let i = 0; i < coralCount; i++) {
             for (let attempt = 0; attempt < 15; attempt++) {
-                const x = 80 + Math.random() * (cw - 160);
-                const y = ch * 0.6 + Math.random() * (ch * 0.3 - 30);
+                const x = 80 + seededRandom() * (cw - 160);
+                const y = ch * 0.6 + seededRandom() * (ch * 0.3 - 30);
+                const scale = 0.7 + seededRandom() * 0.6; // 0.7x to 1.3x scale
                 if (this._isValidPlacement(x, y, cw, ch)) {
-                    this.hidingSpots.push(new HidingSpot({
+                    const spot = new HidingSpot({
                         x, y, radius: 35, type: 'coral',
-                    }));
+                    });
+                    spot.scale = scale;
+                    this.hidingSpots.push(spot);
                     break;
                 }
             }
         }
 
         // --- Caves (bottom edge) ---
-        const caveCount = 1 + Math.floor(Math.random() * 2); // 1-2
+        const caveCount = 1 + Math.floor(seededRandom() * 2); // 1-2
         for (let i = 0; i < caveCount; i++) {
             for (let attempt = 0; attempt < 15; attempt++) {
-                const x = 120 + Math.random() * (cw - 240);
+                const x = 120 + seededRandom() * (cw - 240);
                 const y = ch - 30;
+                const scale = 0.8 + seededRandom() * 0.5; // 0.8x to 1.3x scale
                 if (this._isValidPlacement(x, y, cw, ch)) {
-                    this.hidingSpots.push(new HidingSpot({
+                    const spot = new HidingSpot({
                         x, y, radius: 45, type: 'cave',
-                    }));
+                    });
+                    spot.scale = scale;
+                    this.hidingSpots.push(spot);
                     break;
                 }
             }
         }
 
         // --- Seaweed clusters (mid-lower) ---
-        const seaweedCount = 2 + Math.floor(Math.random() * 2); // 2-3
+        const seaweedCount = 2 + Math.floor(seededRandom() * 2); // 2-3
         for (let i = 0; i < seaweedCount; i++) {
             for (let attempt = 0; attempt < 15; attempt++) {
-                const x = 60 + Math.random() * (cw - 120);
-                const y = ch * 0.45 + Math.random() * (ch * 0.35);
+                const x = 60 + seededRandom() * (cw - 120);
+                const y = ch * 0.45 + seededRandom() * (ch * 0.35);
+                const scale = 0.6 + seededRandom() * 0.8; // 0.6x to 1.4x scale
                 if (this._isValidPlacement(x, y, cw, ch)) {
-                    this.hidingSpots.push(new HidingSpot({
+                    const spot = new HidingSpot({
                         x, y, radius: 30, type: 'seaweed',
-                    }));
+                    });
+                    spot.scale = scale;
+                    this.hidingSpots.push(spot);
                     break;
                 }
             }
@@ -76,10 +93,10 @@ const Environment = {
         // --- Background decorations (non-interactive) ---
         for (let i = 0; i < 8; i++) {
             this.decorations.push({
-                x: 40 + Math.random() * (cw - 80),
-                y: ch * 0.5 + Math.random() * (ch * 0.45),
-                size: 8 + Math.random() * 15,
-                hue: Math.random(),
+                x: 40 + seededRandom() * (cw - 80),
+                y: ch * 0.5 + seededRandom() * (ch * 0.45),
+                size: 8 + seededRandom() * 15,
+                hue: seededRandom(),
             });
         }
     },
@@ -147,6 +164,11 @@ const Environment = {
     // --- Seaweed ---
     _drawSeaweed(ctx, spot, time) {
         ctx.save();
+        ctx.translate(spot.x, spot.y);
+        const scale = spot.scale || 1;
+        ctx.scale(scale, scale);
+        ctx.translate(-spot.x, -spot.y);
+
         const strandCount = 4 + (spot.seed % 3);
         for (let i = 0; i < strandCount; i++) {
             const offsetX = (i - strandCount / 2) * 8;
@@ -184,6 +206,11 @@ const Environment = {
     // --- Coral ---
     _drawCoralBack(ctx, spot) {
         ctx.save();
+        ctx.translate(spot.x, spot.y);
+        const scale = spot.scale || 1;
+        ctx.scale(scale, scale);
+        ctx.translate(-spot.x, -spot.y);
+
         const colors = ['#e74c3c', '#f39c12', '#e91e63', '#ff7043', '#d63384'];
         const branchCount = 3 + (spot.seed % 3);
 
@@ -221,6 +248,11 @@ const Environment = {
     _drawCoralFront(ctx, spot) {
         // Small foreground coral tips that overlap the player
         ctx.save();
+        ctx.translate(spot.x, spot.y);
+        const scale = spot.scale || 1;
+        ctx.scale(scale, scale);
+        ctx.translate(-spot.x, -spot.y);
+
         ctx.globalAlpha = 0.7;
         const color = ['#e74c3c', '#f39c12'][(spot.seed) % 2];
         ctx.fillStyle = color;
@@ -238,6 +270,10 @@ const Environment = {
     // --- Cave ---
     _drawCaveBack(ctx, spot) {
         ctx.save();
+        ctx.translate(spot.x, spot.y);
+        const scale = spot.scale || 1;
+        ctx.scale(scale, scale);
+        ctx.translate(-spot.x, -spot.y);
 
         // Cave arch
         ctx.fillStyle = '#3d2b1f';
@@ -272,6 +308,11 @@ const Environment = {
     _drawCaveFront(ctx, spot) {
         // Small rock overhang at top
         ctx.save();
+        ctx.translate(spot.x, spot.y);
+        const scale = spot.scale || 1;
+        ctx.scale(scale, scale);
+        ctx.translate(-spot.x, -spot.y);
+
         ctx.globalAlpha = 0.5;
         ctx.fillStyle = '#4a3728';
         ctx.beginPath();
