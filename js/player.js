@@ -33,6 +33,7 @@ class Player {
             down: false,
             left: false,
             right: false,
+            eat: false,
         };
 
         // Mouse following
@@ -180,6 +181,15 @@ class Player {
         this.currentHidingSpot = null;
     }
 
+    setSpecies(speciesIndex) {
+        this.currentSpeciesIndex = speciesIndex;
+        this.currentSpecies = getSpeciesByIndex(speciesIndex);
+        this.loadSpeciesAttributes();
+        this.points = 0;
+        this.energy = this.maxEnergy;
+        this.health = this.maxHealth;
+    }
+
     _bindKeys() {
         window.addEventListener('keydown', (e) => this._handleKey(e, true));
         window.addEventListener('keyup', (e) => this._handleKey(e, false));
@@ -211,7 +221,20 @@ class Player {
                 this.keys.right = pressed;
                 e.preventDefault();
                 break;
+            case 'Enter':
+            case ' ':  // Space
+                this.keys.eat = pressed;
+                e.preventDefault();
+                break;
         }
+    }
+
+    consumeEatKeyPress() {
+        if (this.keys.eat) {
+            this.keys.eat = false;  // One-shot consumption
+            return true;
+        }
+        return false;
     }
 
     _bindMouse() {
@@ -238,6 +261,12 @@ class Player {
 
         // Click to set target for eating
         canvas.addEventListener('click', (e) => {
+            // Check for feedback modal
+            if (window.state && window.state.state === 'feedback') {
+                window.state.dismissFeedback();
+                return;  // Don't process as eat click
+            }
+
             const rect = canvas.getBoundingClientRect();
             this.targetX = e.clientX - rect.left;
             this.targetY = e.clientY - rect.top;
@@ -264,7 +293,7 @@ class Player {
         let ax = 0;
         let ay = 0;
 
-        // Click target takes highest priority (swim to eat food)
+        // Priority 1: Click target (for eating) - highest priority
         if (this.hasTarget && this.targetX !== null && this.targetY !== null) {
             const dx = this.targetX - this.x;
             const dy = this.targetY - this.y;
@@ -282,40 +311,48 @@ class Player {
                 this.vx *= 0.85;
                 this.vy *= 0.85;
             }
-        }
-        // Mouse control takes priority if active (and no click target)
-        else if (this.mouseActive && this.mouseX !== null && this.mouseY !== null) {
-            const dx = this.mouseX - this.x;
-            const dy = this.mouseY - this.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-
-            // Stop at mouse position (larger dead zone)
-            if (dist > 20) {
-                // Direction toward mouse
-                ax = dx / dist;
-                ay = dy / dist;
-
-                // Speed scales with distance (closer = slower, more precise)
-                const speedMult = Math.min(1, dist / 100);
-                ax *= speedMult;
-                ay *= speedMult;
-            } else {
-                // Very close to mouse - stop completely
-                this.vx *= 0.8;
-                this.vy *= 0.8;
-            }
         } else {
-            // Keyboard control
-            if (this.keys.left) ax -= 1;
-            if (this.keys.right) ax += 1;
-            if (this.keys.up) ay -= 1;
-            if (this.keys.down) ay += 1;
+            // Priority 2: Blend keyboard and mouse inputs (equal weight)
+            let kbAx = 0, kbAy = 0;
+            let mouseAx = 0, mouseAy = 0;
 
-            // Normalize diagonal movement
-            if (ax !== 0 && ay !== 0) {
+            // Keyboard input
+            if (this.keys.left) kbAx -= 1;
+            if (this.keys.right) kbAx += 1;
+            if (this.keys.up) kbAy -= 1;
+            if (this.keys.down) kbAy += 1;
+
+            // Normalize diagonal keyboard movement
+            if (kbAx !== 0 && kbAy !== 0) {
                 const invSqrt2 = 1 / Math.SQRT2;
-                ax *= invSqrt2;
-                ay *= invSqrt2;
+                kbAx *= invSqrt2;
+                kbAy *= invSqrt2;
+            }
+
+            // Mouse input
+            if (this.mouseActive && this.mouseX !== null && this.mouseY !== null) {
+                const dx = this.mouseX - this.x;
+                const dy = this.mouseY - this.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist > 20) {
+                    mouseAx = dx / dist;
+                    mouseAy = dy / dist;
+                    const speedMult = Math.min(1, dist / 100);
+                    mouseAx *= speedMult;
+                    mouseAy *= speedMult;
+                }
+            }
+
+            // Combine both inputs (equal blend)
+            ax = kbAx + mouseAx;
+            ay = kbAy + mouseAy;
+
+            // Normalize if combined vector is too long
+            const combinedMag = Math.sqrt(ax * ax + ay * ay);
+            if (combinedMag > 1) {
+                ax /= combinedMag;
+                ay /= combinedMag;
             }
         }
 

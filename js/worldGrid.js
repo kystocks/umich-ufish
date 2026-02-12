@@ -285,47 +285,55 @@ class WorldGrid {
     /**
      * Draw mini-map
      */
-    drawMiniMap(ctx) {
-        const mapSize = 90;
-        const cellSize = mapSize / 3;
-        const mapX = this.canvasWidth - mapSize - 15;
-        const mapY = 60;
+    drawMiniMap(player) {
+        const miniCanvas = document.getElementById('mini-map');
+        if (!miniCanvas) return;
 
-        ctx.save();
+        const ctx = miniCanvas.getContext('2d');
+        const cellSize = 30;  // 90px / 3 zones
 
-        // Background
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-        ctx.fillRect(mapX - 5, mapY - 5, mapSize + 10, mapSize + 10);
+        // Clear
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(0, 0, 90, 90);
 
         // Draw grid
         for (let y = 0; y < 3; y++) {
             for (let x = 0; x < 3; x++) {
-                const cellX = mapX + x * cellSize;
-                const cellY = mapY + y * cellSize;
+                const zone = this.zones[`${x},${y}`];
+                const px = x * cellSize;
+                const py = y * cellSize;
 
                 // Zone color based on depth
-                const zone = this.zones[`${x},${y}`];
                 let zoneColor;
                 if (zone.depth === 'shallow') zoneColor = '#4a9fd8';
                 else if (zone.depth === 'mid') zoneColor = '#2b7cb0';
                 else zoneColor = '#1a4d6f';
 
-                // Highlight current zone
-                if (x === this.currentZone.x && y === this.currentZone.y) {
-                    ctx.fillStyle = '#f0d060';
+                // Zone cell
+                ctx.fillStyle = zoneColor;
+                ctx.fillRect(px, py, cellSize, cellSize);
+
+                // Current zone highlight
+                if (this.currentZone.x === x && this.currentZone.y === y) {
+                    ctx.strokeStyle = '#f0d060';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(px + 1, py + 1, cellSize - 2, cellSize - 2);
                 } else {
-                    ctx.fillStyle = zoneColor;
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(px, py, cellSize, cellSize);
                 }
-
-                ctx.fillRect(cellX, cellY, cellSize - 2, cellSize - 2);
-
-                // Border
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-                ctx.lineWidth = 1;
-                ctx.strokeRect(cellX, cellY, cellSize - 2, cellSize - 2);
             }
         }
 
-        ctx.restore();
+        // Player dot
+        if (player) {
+            const playerGridX = (player.x / this.zoneWidth) * cellSize;
+            const playerGridY = (player.y / this.zoneHeight) * cellSize;
+            ctx.fillStyle = '#f0d060';
+            ctx.beginPath();
+            ctx.arc(playerGridX, playerGridY, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
     }
 }

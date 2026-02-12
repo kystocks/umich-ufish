@@ -8,8 +8,36 @@
 </head>
 <body>
     <div id="game-container">
+        <!-- Left HUD Panel -->
+        <div id="hud-left">
+            <div id="energy-bar" class="stat-bar">
+                <div class="bar-fill" id="energy-fill"></div>
+                <span class="bar-label">Energy: <span id="energy-value">100</span></span>
+            </div>
+            <div id="health-bar" class="stat-bar">
+                <div class="bar-fill" id="health-fill"></div>
+                <span class="bar-label">Health: <span id="health-value">100</span></span>
+            </div>
+            <div id="species-info">
+                <div id="species-name">Silver Sprat</div>
+                <div id="points-display">Points: 0/100</div>
+            </div>
+            <div id="hidden-indicator" style="display:none;">HIDDEN</div>
+        </div>
+
+        <!-- Top Right HUD Panel -->
+        <div id="hud-top-right">
+            <div id="time-display">0:00</div>
+            <div id="zone-display">Open Water</div>
+        </div>
+
+        <!-- Bottom Right HUD Panel -->
+        <div id="hud-bottom-right">
+            <canvas id="mini-map" width="90" height="90"></canvas>
+        </div>
+
+        <!-- Game Canvas -->
         <canvas id="game-canvas" width="800" height="600"></canvas>
-        <div id="fps-counter">FPS: 0</div>
     </div>
 
     <script src="js/collision.js"></script>

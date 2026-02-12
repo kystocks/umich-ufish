@@ -1,10 +1,10 @@
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
-const fpsDisplay = document.getElementById('fps-counter');
 
 // --- Core objects ---
 const player = new Player(canvas.width / 2, canvas.height / 2);
 const state = new GameState();
+window.state = state;  // Make globally accessible for feedback modal dismissal
 const worldGrid = new WorldGrid(canvas.width, canvas.height);
 
 // --- Click handler for freezing prey ---
@@ -104,6 +104,7 @@ function maintainPopulation() {
 // --- State callbacks ---
 state.onStart = () => {
     player.reset(canvas.width / 2, canvas.height / 2);
+    player.setSpecies(state.selectedSpeciesIndex);  // Apply selected species
     spawnInitialFish();
     const zoneSeed = worldGrid.currentZone.x * 1000 + worldGrid.currentZone.y * 100;
     Environment.generate(canvas.width, canvas.height, zoneSeed);
@@ -126,9 +127,6 @@ state.onRestart = () => {
 
 // --- Timing ---
 let lastTime = 0;
-let frameCount = 0;
-let fpsTimer = 0;
-let currentFps = 0;
 
 // --- Background ---
 function drawBackground() {
@@ -239,16 +237,6 @@ function gameLoop(timestamp) {
     const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
     lastTime = timestamp;
 
-    // FPS
-    frameCount++;
-    fpsTimer += dt;
-    if (fpsTimer >= 1) {
-        currentFps = frameCount;
-        frameCount = 0;
-        fpsTimer -= 1;
-        fpsDisplay.textContent = `FPS: ${currentFps}`;
-    }
-
     // --- Update ---
     state.update(dt);
 
@@ -283,6 +271,13 @@ function gameLoop(timestamp) {
             fish.update(dt, canvas.width, canvas.height, player, fishes);
         }
 
+        // Check for keyboard eat command
+        if (player.consumeEatKeyPress()) {
+            player.targetX = player.x;
+            player.targetY = player.y;
+            player.hasTarget = true;
+        }
+
         // Check if player has reached click target and should eat
         if (player.hasTarget && player.targetX !== null && player.targetY !== null) {
             const targetDist = Math.sqrt(
@@ -296,9 +291,13 @@ function gameLoop(timestamp) {
                 const foodEaten = FoodManager.checkPlayerCollision(player);
                 for (const food of foodEaten) {
                     if (player.canEatFood(food.type)) {
+                        const foodData = FOOD_TYPES[food.type];
                         player.eat(food.type, food.value);
                         spawnEatEffect(food.x, food.y);
                         player.hasTarget = false;  // Clear target after eating
+
+                        // Show feedback
+                        state.showFeedback('healthy', `Good! +${foodData.energyValue} Energy`);
                     }
                 }
 
@@ -312,10 +311,21 @@ function gameLoop(timestamp) {
                             player.eat(fish.species, fish.energyValue);
                             state.score++;
                             addDebugLog(`${fish.species}: OK (+${fish.energyValue}E)`);
+
+                            // Show feedback
+                            state.showFeedback('healthy', `${fish.species}: +${fish.energyValue} Energy`);
                         } else {
                             player.takeDamage(20);
                             player.energy = Math.min(player.maxEnergy, player.energy + fish.energyValue * 0.5);
                             addDebugLog(`${fish.species}: BAD (-20H)`);
+
+                            // Show feedback
+                            state.showFeedback('unhealthy', 'Wrong diet! -20 Health');
+                        }
+
+                        // Check for low health after eating
+                        if (player.health < 30 && state.feedbackType !== 'needsCleaner') {
+                            state.showFeedback('needsCleaner', 'Low health! Find a cleaner fish');
                         }
 
                         spawnEatEffect(fish.x, fish.y);
@@ -411,6 +421,9 @@ function gameLoop(timestamp) {
         player.draw(ctx);
         Environment.drawFront(ctx, 0);
         state.drawMenu(ctx, canvas.width, canvas.height);
+    } else if (state.state === 'speciesSelect') {
+        Environment.drawBack(ctx, 0);
+        state.drawSpeciesSelect(ctx, canvas.width, canvas.height);
     } else if (state.state === 'playing' || state.state === 'advancing') {
         // Back environment layer (seaweed, coral back)
         Environment.drawBack(ctx, gameTime);
@@ -439,14 +452,36 @@ function gameLoop(timestamp) {
 
         // Show HUD or advancement screen
         if (state.state === 'playing') {
-            state.drawHUD(ctx, canvas.width, canvas.height, player);
+            state.updateHUD(player, worldGrid);
+            worldGrid.drawMiniMap(player);
 
-            // Zone indicator and mini-map
+            // Zone indicator
             worldGrid.drawZoneIndicator(ctx);
-            worldGrid.drawMiniMap(ctx);
         } else if (state.state === 'advancing') {
             state.drawAdvancement(ctx, canvas.width, canvas.height);
         }
+    } else if (state.state === 'feedback') {
+        Environment.drawBack(ctx, gameTime);
+        FoodManager.draw(ctx, gameTime);
+        for (const fish of fishes) {
+            fish.draw(ctx);
+        }
+        player.draw(ctx);
+        Environment.drawFront(ctx, gameTime);
+        state.updateHUD(player, worldGrid);
+        worldGrid.drawMiniMap(player);
+        state.drawFeedback(ctx, canvas.width, canvas.height);
+    } else if (state.state === 'paused') {
+        Environment.drawBack(ctx, gameTime);
+        FoodManager.draw(ctx, gameTime);
+        for (const fish of fishes) {
+            fish.draw(ctx);
+        }
+        player.draw(ctx);
+        Environment.drawFront(ctx, gameTime);
+        state.updateHUD(player, worldGrid);
+        worldGrid.drawMiniMap(player);
+        state.drawPaused(ctx, canvas.width, canvas.height);
     } else if (state.state === 'gameOver') {
         Environment.drawBack(ctx, gameTime);
         for (const fish of fishes) {
