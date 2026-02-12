@@ -21,6 +21,7 @@ class Player {
 
         this.health = 100;
         this.maxHealth = 100;
+        this.healthDepleteRate = 0.5; // slow constant health drain per second
 
         // Hiding state (set by Environment.checkPlayerHiding)
         this.isHidden = false;
@@ -154,6 +155,14 @@ class Player {
     }
 
     /**
+     * Deplete health over time (constant slow drain)
+     */
+    depleteHealth(dt) {
+        this.health -= this.healthDepleteRate * dt;
+        if (this.health < 0) this.health = 0;
+    }
+
+    /**
      * Reset player for new game
      */
     reset(x, y) {
@@ -247,8 +256,9 @@ class Player {
     }
 
     update(dt, canvasWidth, canvasHeight, worldGrid = null) {
-        // Deplete energy
+        // Deplete energy and health
         this.depleteEnergy(dt);
+        this.depleteHealth(dt);
 
         // Apply acceleration based on input
         let ax = 0;

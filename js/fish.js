@@ -140,6 +140,46 @@ class Fish {
                     AI.wander(this, dt);
                 }
             }
+        } else if (this.type === 'cleaner') {
+            // Cleaners mostly drift, occasionally pursue nearby fish slowly
+            const detectionRange = this.detectRange;
+
+            // Find nearest fish (player or NPC) that needs cleaning
+            let nearestTarget = null;
+            let nearestDist = detectionRange;
+
+            // Check player first
+            if (distToPlayer < nearestDist) {
+                nearestTarget = player;
+                nearestDist = distToPlayer;
+            }
+
+            // Check other fish
+            for (const other of allFish) {
+                if (other === this || other.type === 'cleaner') continue;
+                const dist = distanceBetween(this, other);
+                if (dist < nearestDist) {
+                    nearestTarget = other;
+                    nearestDist = dist;
+                }
+            }
+
+            // Only pursue if very close, otherwise drift
+            if (nearestTarget && nearestDist < detectionRange * 0.5) {
+                // Slow pursuit - mostly drift toward target
+                AI.drift(this, dt);
+
+                // Add slight drift toward target
+                const dx = nearestTarget.x - this.x;
+                const dy = nearestTarget.y - this.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist > 0) {
+                    this.vx += (dx / dist) * this.speed * 0.15 * dt;
+                    this.vy += (dy / dist) * this.speed * 0.15 * dt;
+                }
+            } else {
+                AI.drift(this, dt);
+            }
         } else if (this.type === 'predator') {
             // Reduced detection range for predators too
             const detectionRange = this.detectRange * 0.6;

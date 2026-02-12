@@ -37,7 +37,9 @@ const POPULATION = {
     smallFish:      { min: 3, max: 5, create: createSmallFish },
     mediumPredator: { min: 2, max: 3, create: createMediumPredator },
     largePredator:  { min: 1, max: 1, create: createLargePredator },
-    totalMax: 20,
+    cleanerWrasse:  { min: 1, max: 2, create: createCleanerWrasse },
+    cleanerShrimp:  { min: 1, max: 1, create: createCleanerShrimp, yMin: 0.6, yMax: 0.95 },
+    totalMax: 25,
 };
 
 const SPAWN_SAFE_DIST = 250;
@@ -326,6 +328,21 @@ function gameLoop(timestamp) {
                 // If nothing was eaten at target, clear target anyway
                 if (player.hasTarget) {
                     player.hasTarget = false;
+                }
+            }
+        }
+
+        // Collision: player vs cleaners (gradual health restoration)
+        for (const fish of fishes) {
+            if (fish.type === 'cleaner' && checkCollision(player, fish)) {
+                // Restore health gradually over time while in contact
+                const healthBefore = player.health;
+                const restoreAmount = (fish.healthRestoreRate || 5) * dt;
+                player.restoreHealth(restoreAmount);
+
+                // Show occasional sparkle effect while being cleaned
+                if (Math.random() < 0.1) {  // 10% chance per frame
+                    spawnEatEffect(fish.x, fish.y);
                 }
             }
         }

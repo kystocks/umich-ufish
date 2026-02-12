@@ -263,3 +263,139 @@ function createLargePredator(x, y) {
         drawFn: drawLargePredator,
     });
 }
+
+// ============================================================
+// CLEANER SPECIES (Health Restoration)
+// ============================================================
+
+/**
+ * Bluestreak Cleaner Wrasse - small blue fish that pursues fish to clean them
+ */
+function drawCleanerWrasse(ctx, fish) {
+    ctx.save();
+    ctx.translate(fish.x, fish.y);
+
+    // Flip to face movement direction
+    if (fish.vx < -0.5) {
+        ctx.scale(-1, 1);
+    }
+
+    // Sleek body with blue stripe
+    ctx.fillStyle = '#3498db';  // Bright blue
+    ctx.beginPath();
+    ctx.ellipse(0, 0, fish.width / 2, fish.height / 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Black horizontal stripe
+    ctx.fillStyle = '#000';
+    ctx.fillRect(-fish.width / 2, -1, fish.width, 2);
+
+    // Tail
+    ctx.fillStyle = '#2980b9';
+    ctx.beginPath();
+    const tw = fish.width * 0.25;
+    const th = fish.height * 0.35;
+    ctx.moveTo(-fish.width / 2, 0);
+    ctx.lineTo(-fish.width / 2 - tw, -th);
+    ctx.lineTo(-fish.width / 2 - tw, th);
+    ctx.closePath();
+    ctx.fill();
+
+    // Eye
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(fish.width / 4, -2, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(fish.width / 4 + 1, -2, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+}
+
+function createCleanerWrasse(x, y) {
+    return new Fish({
+        x, y,
+        speed: 50,  // Slow and drifty
+        radius: 8,
+        width: 22,
+        height: 12,
+        color: '#3498db',
+        tailColor: '#2980b9',
+        type: 'cleaner',
+        species: 'bluestreakCleanerWrasse',
+        detectRange: 180,
+        healthRestoreRate: 5,  // Health restored per second while in contact
+        energyValue: 0,  // Not edible
+        drawFn: drawCleanerWrasse,
+    });
+}
+
+/**
+ * Banded Coral Shrimp - cleaner shrimp that pursues fish
+ */
+function drawCleanerShrimp(ctx, fish) {
+    ctx.save();
+    ctx.translate(fish.x, fish.y);
+
+    // Flip to face movement direction
+    if (fish.vx < -0.5) {
+        ctx.scale(-1, 1);
+    }
+
+    // Banded body (red and white stripes)
+    ctx.fillStyle = '#e74c3c';
+    ctx.beginPath();
+    ctx.moveTo(-fish.width / 2, 0);
+    ctx.quadraticCurveTo(0, -fish.height * 0.6, fish.width / 2, -2);
+    ctx.quadraticCurveTo(0, fish.height * 0.4, -fish.width / 2, 0);
+    ctx.fill();
+
+    // White bands
+    ctx.fillStyle = '#fff';
+    for (let i = 0; i < 3; i++) {
+        const bx = -fish.width / 2 + i * 7;
+        ctx.fillRect(bx, -4, 2, 8);
+    }
+
+    // Tail fan
+    ctx.fillStyle = '#c0392b';
+    ctx.beginPath();
+    ctx.moveTo(-fish.width / 2, 0);
+    ctx.lineTo(-fish.width / 2 - 5, -3);
+    ctx.lineTo(-fish.width / 2 - 6, 0);
+    ctx.lineTo(-fish.width / 2 - 5, 3);
+    ctx.closePath();
+    ctx.fill();
+
+    // Long white antennae
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(fish.width / 2, -2);
+    ctx.lineTo(fish.width / 2 + 10, -8);
+    ctx.moveTo(fish.width / 2, -1);
+    ctx.lineTo(fish.width / 2 + 9, -10);
+    ctx.stroke();
+
+    ctx.restore();
+}
+
+function createCleanerShrimp(x, y) {
+    return new Fish({
+        x, y,
+        speed: 40,  // Very slow and drifty
+        radius: 8,
+        width: 18,
+        height: 10,
+        color: '#e74c3c',
+        tailColor: '#c0392b',
+        type: 'cleaner',
+        species: 'bandedCoralShrimp',
+        detectRange: 120,
+        healthRestoreRate: 3,  // Health restored per second while in contact
+        energyValue: 0,  // Not edible
+        drawFn: drawCleanerShrimp,
+    });
+}
